@@ -1,0 +1,381 @@
+# ============================================================
+# LIVESTOCK LEDGER — COMPLETE DEPLOYMENT GUIDE
+# Written for someone who has never deployed a web app before
+# ============================================================
+
+This guide will take your Livestock Ledger from files on your
+computer to a live website you can open from any phone or laptop,
+anywhere in the world. Follow every step in order.
+
+Total time: about 60–90 minutes (most of it is just waiting
+for things to install).
+
+You will need:
+- A laptop (Windows or Mac)
+- A stable internet connection
+- Your email address
+
+===============================================================
+PART 1 — CREATE YOUR THREE FREE ACCOUNTS
+===============================================================
+
+You need accounts on three websites. All are free.
+
+--------------------------------------------------------------
+STEP 1: Create a GitHub account
+--------------------------------------------------------------
+GitHub is where your code lives online.
+
+1. Open your browser and go to: https://github.com
+2. Click "Sign up"
+3. Enter your email address
+4. Create a username (e.g. marley-babati or anything you like)
+5. Create a password
+6. Verify your email when they send you a confirmation email
+7. Done — stay logged in
+
+--------------------------------------------------------------
+STEP 2: Create a Supabase account
+--------------------------------------------------------------
+Supabase is your database — this is where all your animal
+records, costs, dispatches, and payments are stored.
+
+1. Go to: https://supabase.com
+2. Click "Start your project"
+3. Sign up with your GitHub account (click "Continue with GitHub")
+   — this links the two accounts automatically
+4. Once logged in, click "New project"
+5. Fill in:
+   - Organization: (it will create one for you automatically)
+   - Project name: livestock-ledger
+   - Database password: Create a strong password and WRITE IT DOWN
+     somewhere safe. Example: Tanchoice2024!
+   - Region: Choose "East US (North Virginia)" — closest to Tanzania
+6. Click "Create new project"
+7. Wait 2–3 minutes while it sets up. You will see a loading spinner.
+8. Once ready, you will see your project dashboard. Leave this tab open.
+
+--------------------------------------------------------------
+STEP 3: Create a Vercel account
+--------------------------------------------------------------
+Vercel is where your website is hosted and given a web address.
+
+1. Go to: https://vercel.com
+2. Click "Sign Up"
+3. Choose "Continue with GitHub"
+4. Authorize Vercel to access your GitHub
+5. Done — stay logged in
+
+
+===============================================================
+PART 2 — SET UP YOUR DATABASE
+===============================================================
+
+This is where you create all the tables that store your data.
+
+--------------------------------------------------------------
+STEP 4: Run the database setup script
+--------------------------------------------------------------
+1. Go back to your Supabase tab (https://supabase.com)
+2. Click on your "livestock-ledger" project
+3. On the left sidebar, click "SQL Editor"
+4. Click "New query" (top left of the editor)
+5. Open the file called "supabase_schema.sql" from the ZIP
+   you downloaded from Claude
+6. Select ALL the text in that file (Ctrl+A on Windows,
+   Cmd+A on Mac)
+7. Copy it (Ctrl+C / Cmd+C)
+8. Paste it into the Supabase SQL Editor (Ctrl+V / Cmd+V)
+9. Click the green "Run" button (or press Ctrl+Enter)
+10. You should see "Success. No rows returned" at the bottom
+    This means your database tables are created. 
+
+--------------------------------------------------------------
+STEP 5: Get your Supabase connection keys
+--------------------------------------------------------------
+You need two pieces of information from Supabase to connect
+your app to your database.
+
+1. In Supabase, click "Settings" in the left sidebar
+   (the gear icon at the very bottom)
+2. Click "API"
+3. You will see two values. Copy them and paste into a
+   Notepad or text file on your computer:
+
+   Project URL — looks like:
+   https://abcdefghijkl.supabase.co
+
+   anon public key — a very long string of letters, looks like:
+   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+   KEEP THESE SAFE. They are like keys to your database.
+
+
+===============================================================
+PART 3 — INSTALL THE TOOLS ON YOUR LAPTOP
+===============================================================
+
+--------------------------------------------------------------
+STEP 6: Install Node.js
+--------------------------------------------------------------
+Node.js lets your computer run and build the app.
+
+1. Go to: https://nodejs.org
+2. Click the big green button that says "LTS" (the recommended version)
+3. Download the installer
+4. Open the installer and click Next → Next → Install
+5. When it finishes, click Finish
+
+To check it worked:
+- On Windows: Press the Windows key, type "cmd", press Enter
+- On Mac: Press Cmd+Space, type "terminal", press Enter
+- In the black window that opens, type exactly:
+  node --version
+- Press Enter. You should see something like: v20.11.0
+  If you see a version number, it worked!
+
+--------------------------------------------------------------
+STEP 7: Install Git
+--------------------------------------------------------------
+Git is the tool that sends your code to GitHub.
+
+WINDOWS:
+1. Go to: https://git-scm.com/download/win
+2. Download and install (click Next through everything,
+   default settings are fine)
+
+MAC:
+- Git is usually already installed. In Terminal, type:
+  git --version
+- If it asks you to install developer tools, click Install
+
+After installing, close and reopen your Terminal/Command Prompt.
+
+
+===============================================================
+PART 4 — PREPARE YOUR PROJECT FILES
+===============================================================
+
+--------------------------------------------------------------
+STEP 8: Extract the ZIP file
+--------------------------------------------------------------
+1. Find the ZIP file you downloaded from Claude
+   (it is called livestock-ledger.zip)
+2. Right-click it → "Extract All" (Windows) or double-click (Mac)
+3. You will now have a folder called "livestock-ledger"
+   Put this folder on your Desktop for easy access
+
+--------------------------------------------------------------
+STEP 9: Add your secret keys to the project
+--------------------------------------------------------------
+1. Open the "livestock-ledger" folder on your Desktop
+2. Find the file called ".env.example"
+   NOTE: On Windows, files starting with "." may be hidden.
+   If you cannot see it:
+   - Open File Explorer
+   - Click View → Show → Hidden items
+3. Make a COPY of .env.example and rename the copy to: .env.local
+   (important: exactly ".env.local" with the dot at the start)
+4. Open .env.local with Notepad (right-click → Open with → Notepad)
+5. Replace the placeholder values with your real values:
+
+   REACT_APP_SUPABASE_URL=paste-your-project-url-here
+   REACT_APP_SUPABASE_ANON_KEY=paste-your-anon-key-here
+   REACT_APP_APP_PASSWORD=choose-a-password-for-yourself
+
+   Example of what it should look like:
+   REACT_APP_SUPABASE_URL=https://abcxyz123.supabase.co
+   REACT_APP_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...
+   REACT_APP_APP_PASSWORD=Mbuzi2024Babati
+
+6. Save the file (Ctrl+S)
+
+--------------------------------------------------------------
+STEP 10: Install the app dependencies
+--------------------------------------------------------------
+1. Open Terminal (Mac) or Command Prompt (Windows)
+2. Navigate to your project folder by typing:
+
+   On Windows:
+   cd Desktop\livestock-ledger
+
+   On Mac:
+   cd Desktop/livestock-ledger
+
+3. Press Enter
+4. Now type:
+   npm install
+5. Press Enter
+6. Wait. This will take 2–5 minutes. You will see a lot of
+   text scrolling. This is normal. Wait until it stops and
+   you see your cursor again.
+
+--------------------------------------------------------------
+STEP 11: Test the app on your computer first
+--------------------------------------------------------------
+Before putting it online, let's make sure it works.
+
+1. In the same Terminal/Command Prompt, type:
+   npm start
+2. Press Enter
+3. Wait about 30 seconds
+4. Your browser should automatically open at:
+   http://localhost:3000
+5. You should see the Livestock Ledger login page
+6. Enter the password you put in .env.local
+7. You should see the Dashboard
+8. Try adding a sign and an animal to test it works
+
+If everything looks good — great! The app is working.
+Press Ctrl+C in the Terminal to stop it.
+
+
+===============================================================
+PART 5 — PUT IT ON GITHUB
+===============================================================
+
+--------------------------------------------------------------
+STEP 12: Set up Git in your project
+--------------------------------------------------------------
+In your Terminal/Command Prompt (make sure you are still
+in the livestock-ledger folder), type these commands
+ONE BY ONE, pressing Enter after each:
+
+   git init
+
+   git add .
+
+   git commit -m "Initial livestock ledger"
+
+You should see a message like "1 file changed" or similar.
+
+--------------------------------------------------------------
+STEP 13: Create a GitHub repository
+--------------------------------------------------------------
+1. Go to https://github.com (make sure you are logged in)
+2. Click the "+" icon in the top right corner
+3. Click "New repository"
+4. Fill in:
+   - Repository name: livestock-ledger
+   - Keep it "Private" (so only you can see it)
+   - Do NOT check any of the "Initialize" options
+5. Click "Create repository"
+6. You will see a page with some code. Look for the section
+   that says "…or push an existing repository from the command line"
+7. It will show you commands that look like this (your username
+   will be different):
+
+   git remote add origin https://github.com/YOUR-USERNAME/livestock-ledger.git
+   git branch -M main
+   git push -u origin main
+
+8. Copy those three commands from GitHub (not from this guide,
+   from your GitHub page — they have your actual username)
+9. Paste and run them in your Terminal one by one
+10. GitHub may ask for your username and password.
+    For the password, use a "Personal Access Token":
+    - Go to GitHub → click your profile photo → Settings
+    - Scroll to bottom → click "Developer settings"
+    - Personal access tokens → Tokens (classic)
+    - Generate new token → give it any name
+    - Check "repo" checkbox
+    - Click Generate token
+    - COPY the token immediately (you cannot see it again)
+    - Use this token as your password when Terminal asks
+
+11. Once done, refresh your GitHub page — you should see
+    all your files listed there
+
+
+===============================================================
+PART 6 — DEPLOY TO VERCEL (GO LIVE)
+===============================================================
+
+--------------------------------------------------------------
+STEP 14: Deploy on Vercel
+--------------------------------------------------------------
+1. Go to https://vercel.com (make sure you are logged in)
+2. Click "Add New Project"
+3. Click "Import" next to your "livestock-ledger" repository
+   (it should appear in the list because you connected GitHub)
+4. On the configuration screen:
+   - Framework Preset: Create React App (select this)
+   - Root Directory: leave as default
+5. IMPORTANT: Click "Environment Variables" to expand it
+6. Add your three secret variables one by one:
+   Click "Add" for each one:
+
+   Name: REACT_APP_SUPABASE_URL
+   Value: (paste your Supabase project URL)
+
+   Name: REACT_APP_SUPABASE_ANON_KEY
+   Value: (paste your Supabase anon key)
+
+   Name: REACT_APP_APP_PASSWORD
+   Value: (your chosen password)
+
+7. Click "Deploy"
+8. Wait 2–3 minutes. Vercel will build your app.
+9. When finished, you will see "Congratulations!" and a URL
+   like: https://livestock-ledger-abc123.vercel.app
+
+10. Click "Visit" to open your live app!
+11. Enter your password and you should see your dashboard
+
+
+===============================================================
+PART 7 — USING YOUR LIVE APP
+===============================================================
+
+--------------------------------------------------------------
+Your app is now live at your Vercel URL
+--------------------------------------------------------------
+
+You can access it from:
+- Your phone (open the URL in Chrome or Safari)
+- Any laptop, anywhere
+- Bookmark it on your phone's home screen:
+  Chrome → three dots menu → "Add to Home Screen"
+  This makes it work like an app icon on your phone
+
+Your data is safe in Supabase. Nothing will be lost even if
+you clear your browser, change your phone, or access it
+from a different device.
+
+--------------------------------------------------------------
+HOW TO UPDATE THE APP IN THE FUTURE
+--------------------------------------------------------------
+If we make changes to the code, you just run these
+commands in your Terminal (from the livestock-ledger folder):
+
+   git add .
+   git commit -m "Updated app"
+   git push
+
+Vercel will automatically detect the change and redeploy.
+Takes about 2 minutes. No downtime for you.
+
+--------------------------------------------------------------
+WHAT TO DO IF SOMETHING GOES WRONG
+--------------------------------------------------------------
+- Screenshot the error message
+- Come back to Claude and share what you see
+- I will help you fix it step by step
+
+===============================================================
+SUMMARY OF YOUR ACCOUNTS AND LINKS
+===============================================================
+
+Keep this information safe:
+
+GitHub:   https://github.com
+Supabase: https://supabase.com (your database dashboard)
+Vercel:   https://vercel.com (your hosting dashboard)
+Your app: https://livestock-ledger-XXXXX.vercel.app
+
+Your Supabase URL:    ________________________________
+Your app password:    ________________________________
+
+===============================================================
+DONE! Your Livestock Ledger is live and production-ready.
+===============================================================
