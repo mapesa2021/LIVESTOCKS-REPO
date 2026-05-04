@@ -13,7 +13,7 @@ export default function Signs() {
   async function load() {
     setLoading(true)
     try {
-      const [s, p] = await Promise.all([getSigns(), getSignPnl()])
+      const [, p] = await Promise.all([getSigns(), getSignPnl()])
       setPnl(p)
     } finally { setLoading(false) }
   }
