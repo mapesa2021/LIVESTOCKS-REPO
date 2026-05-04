@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { addAnimal, getSigns, getAgents } from '../lib/supabase'
-import { today, Card, SectionTitle, Input, Select, Btn, Alert, Grid } from '../lib/ui'
+import { today, Card, SectionTitle, Input, Btn, Alert, Grid } from '../lib/ui'
 
-const empty = () => ({
-  date: today(), type: 'goat', sign_id: '', mnada: '', mnada_date: today(),
-  purchase_price: '', live_weight_est: '', checkpoint: '', agent_id: '', notes: ''
+const emptyRow = () => ({
+  sign_id: '', agent_id: '', quantity: 1, type: 'goat',
+  purchase_price: '', live_weight_est: '', notes: ''
+})
+
+const emptyCommon = () => ({
+  date: today(), mnada: '', mnada_date: today(), checkpoint: ''
 })
 
 export default function AddAnimal() {
-  const [form, setForm] = useState(empty())
+  const [common, setCommon] = useState(emptyCommon())
+  const [rows, setRows] = useState([emptyRow()])
   const [signs, setSigns] = useState([])
   const [agents, setAgents] = useState([])
   const [msg, setMsg] = useState(null)
@@ -19,97 +24,164 @@ export default function AddAnimal() {
     getAgents().then(setAgents)
   }, [])
 
-  function f(key, val) { setForm(p => ({ ...p, [key]: val })) }
+  function c(key, val) { setCommon(p => ({ ...p, [key]: val })) }
+  function r(i, key, val) { setRows(p => p.map((row, idx) => idx === i ? { ...row, [key]: val } : row)) }
+  function addRow() { setRows(p => [...p, emptyRow()]) }
+  function removeRow(i) { if (rows.length > 1) setRows(p => p.filter((_, idx) => idx !== i)) }
 
-  async function save(keepForm) {
-    if (!form.date || !form.sign_id || !form.mnada || !form.purchase_price) {
-      setMsg({ type: 'danger', text: 'Please fill: date, sign, mnada, and price.' })
-      return
+  const totalAnimals = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
+  const totalCost = rows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.purchase_price) || 0), 0)
+
+  async function save() {
+    if (!common.date || !common.mnada) {
+      setMsg({ type: 'danger', text: 'Please fill date and mnada.' }); return
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      if (!row.sign_id || !row.purchase_price) {
+        setMsg({ type: 'danger', text: `Group ${i + 1}: sign and price are required.` }); return
+      }
     }
     setSaving(true)
+    let count = 0
     try {
-      const animal = {
-        date: form.date,
-        type: form.type,
-        sign_id: Number(form.sign_id),
-        mnada: form.mnada,
-        mnada_date: form.mnada_date || null,
-        purchase_price: Number(form.purchase_price),
-        live_weight_est: form.live_weight_est ? Number(form.live_weight_est) : null,
-        checkpoint: form.checkpoint || null,
-        agent_id: form.agent_id ? Number(form.agent_id) : null,
-        notes: form.notes || null,
+      for (const row of rows) {
+        const qty = Number(row.quantity) || 1
+        for (let i = 0; i < qty; i++) {
+          await addAnimal({
+            date: common.date,
+            type: row.type,
+            sign_id: Number(row.sign_id),
+            mnada: common.mnada,
+            mnada_date: common.mnada_date || null,
+            purchase_price: Number(row.purchase_price),
+            live_weight_est: row.live_weight_est ? Number(row.live_weight_est) : null,
+            checkpoint: common.checkpoint || null,
+            agent_id: row.agent_id ? Number(row.agent_id) : null,
+            notes: row.notes || null,
+          })
+          count++
+        }
       }
-      const saved = await addAnimal(animal)
-      setMsg({ type: 'success', text: `Animal #${saved.id} saved successfully.` })
-      if (!keepForm) setForm(empty())
+      setMsg({ type: 'success', text: `✓ ${count} animal${count !== 1 ? 's' : ''} saved successfully.` })
+      setCommon(emptyCommon())
+      setRows([emptyRow()])
     } catch (e) {
       setMsg({ type: 'danger', text: e.message })
     } finally { setSaving(false) }
   }
 
   return (
-    <Card>
-      <SectionTitle>Record new animal purchase</SectionTitle>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Card>
+        <SectionTitle>Record animal purchases</SectionTitle>
 
-      <Grid cols={2} gap={12}>
-        <Input label="Date purchased" type="date" value={form.date} onChange={e => f('date', e.target.value)} />
-        <Select label="Animal type" value={form.type} onChange={e => f('type', e.target.value)}>
-          <option value="goat">Goat</option>
-          <option value="sheep">Sheep</option>
-        </Select>
-      </Grid>
-
-      <div style={{ marginTop: 12 }}>
-        <Grid cols={3} gap={12}>
-          <Select label="Sign / group" value={form.sign_id} onChange={e => f('sign_id', e.target.value)}>
-            <option value="">— select sign —</option>
-            {signs.map(s => <option key={s.id} value={s.id}>{s.name} ({s.mnada})</option>)}
-          </Select>
-          <Input label="Mnada (market name)" value={form.mnada} onChange={e => f('mnada', e.target.value)} placeholder="e.g. Babati mnada" />
-          <Input label="Mnada date" type="date" value={form.mnada_date} onChange={e => f('mnada_date', e.target.value)} />
-        </Grid>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <Grid cols={3} gap={12}>
-          <Input label="Purchase price (TSH)" type="number" value={form.purchase_price} onChange={e => f('purchase_price', e.target.value)} placeholder="0" />
-          <Input label="Live weight estimate (kg)" type="number" value={form.live_weight_est} onChange={e => f('live_weight_est', e.target.value)} placeholder="optional" />
-          <Input label="Current checkpoint" value={form.checkpoint} onChange={e => f('checkpoint', e.target.value)} placeholder="e.g. Babati holding pen" />
-        </Grid>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <Grid cols={2} gap={12}>
-          <Select label="Agent who bought this animal" value={form.agent_id} onChange={e => f('agent_id', e.target.value)}>
-            <option value="">— select agent —</option>
-            {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </Select>
-          <Input label="Notes" value={form.notes} onChange={e => f('notes', e.target.value)} placeholder="any remarks" />
-        </Grid>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-        <Btn variant="primary" onClick={() => save(false)} disabled={saving}>
-          {saving ? 'Saving...' : 'Save animal'}
-        </Btn>
-        <Btn onClick={() => save(true)} disabled={saving}>Save + add another</Btn>
-        <Btn onClick={() => setForm(empty())}>Clear</Btn>
-      </div>
-
-      {msg && <Alert type={msg.type}>{msg.text}</Alert>}
-
-      {/* Estimated meat value */}
-      {form.purchase_price && form.live_weight_est && (
-        <div style={{
-          marginTop: 16, padding: '12px 16px', background: '#f0faf4', borderRadius: 8,
-          fontSize: 13, color: '#1e7e34', border: '0.5px solid #82c982'
-        }}>
-          <strong>Estimated value:</strong>{' '}
-          ~{Math.round(Number(form.live_weight_est) * 0.43)} kg meat
-          → ~TSH {Math.round(Number(form.live_weight_est) * 0.43 * 11000).toLocaleString()} at current rate
+        {/* Common fields */}
+        <div style={{ padding: '14px 16px', background: '#faf9f7', borderRadius: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: '#aaa', marginBottom: 10, fontWeight: 600, letterSpacing: 1 }}>
+            SHARED DETAILS (applies to all groups below)
+          </div>
+          <Grid cols={2} gap={12}>
+            <Input label="Date purchased" type="date" value={common.date} onChange={e => c('date', e.target.value)} />
+            <Input label="Mnada (market)" value={common.mnada} onChange={e => c('mnada', e.target.value)} placeholder="e.g. Babati mnada" />
+          </Grid>
+          <Grid cols={2} gap={12} style={{ marginTop: 10 }}>
+            <Input label="Mnada date" type="date" value={common.mnada_date} onChange={e => c('mnada_date', e.target.value)} />
+            <Input label="Starting checkpoint" value={common.checkpoint} onChange={e => c('checkpoint', e.target.value)} placeholder="e.g. Babati holding pen" />
+          </Grid>
         </div>
-      )}
-    </Card>
+
+        {/* Animal group rows */}
+        <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8, fontWeight: 600, letterSpacing: 1 }}>
+          ANIMAL GROUPS — one row per sign / price combination
+        </div>
+
+        {rows.map((row, i) => (
+          <div key={i} style={{
+            border: '0.5px solid #e5e3de', borderRadius: 10, padding: '14px 16px',
+            marginBottom: 10, background: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>Group {i + 1}</span>
+              {rows.length > 1 && <Btn size="sm" variant="danger" onClick={() => removeRow(i)}>Remove</Btn>}
+            </div>
+
+            <Grid cols={3} gap={10}>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Animal type</label>
+                <select value={row.type} onChange={e => r(i, 'type', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+                  <option value="goat">Goat</option>
+                  <option value="sheep">Sheep</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Quantity</label>
+                <input type="number" min="1" value={row.quantity} onChange={e => r(i, 'quantity', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Avg price per animal (TSH)</label>
+                <input type="number" value={row.purchase_price} placeholder="0" onChange={e => r(i, 'purchase_price', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+              </div>
+            </Grid>
+
+            <Grid cols={3} gap={10} style={{ marginTop: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Sign / group</label>
+                <select value={row.sign_id} onChange={e => r(i, 'sign_id', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+                  <option value="">— select sign —</option>
+                  {signs.map(s => <option key={s.id} value={s.id}>{s.name} ({s.mnada})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Agent who bought</label>
+                <select value={row.agent_id} onChange={e => r(i, 'agent_id', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+                  <option value="">— select agent —</option>
+                  {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Est. live weight / animal (kg)</label>
+                <input type="number" value={row.live_weight_est} placeholder="optional" onChange={e => r(i, 'live_weight_est', e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+              </div>
+            </Grid>
+
+            <div style={{ marginTop: 10 }}>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Notes for this group</label>
+              <input value={row.notes} placeholder="optional" onChange={e => r(i, 'notes', e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #ccc', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+            </div>
+
+            {row.quantity && row.purchase_price && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#1e7e34', fontWeight: 600 }}>
+                Subtotal: {Number(row.quantity)} × TSH {Number(row.purchase_price).toLocaleString()} = TSH {(Number(row.quantity) * Number(row.purchase_price)).toLocaleString()}
+              </div>
+            )}
+          </div>
+        ))}
+
+        <Btn onClick={addRow} style={{ marginBottom: 16 }}>+ Add another group / sign</Btn>
+
+        {totalAnimals > 0 && (
+          <div style={{ padding: '12px 16px', background: '#f0faf4', borderRadius: 8, fontSize: 14, marginBottom: 16, border: '0.5px solid #82c982' }}>
+            <strong>Grand total: {totalAnimals} animals — TSH {totalCost.toLocaleString()}</strong>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Btn variant="primary" onClick={save} disabled={saving}>
+            {saving ? `Saving...` : `Save ${totalAnimals} animal${totalAnimals !== 1 ? 's' : ''}`}
+          </Btn>
+          <Btn onClick={() => { setRows([emptyRow()]); setCommon(emptyCommon()); setMsg(null) }}>Clear all</Btn>
+        </div>
+
+        {msg && <Alert type={msg.type}>{msg.text}</Alert>}
+      </Card>
+    </div>
   )
 }
