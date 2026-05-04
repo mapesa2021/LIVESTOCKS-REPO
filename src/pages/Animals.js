@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getAnimals, updateAnimal, moveCheckpoint as mvCp, getSigns, getAgents } from '../lib/supabase'
-import { fmt, fmtDate, Badge, Card, SectionTitle, Input, Select, Btn, Alert, Spinner, Grid } from '../lib/ui'
+import { fmt, fmtDate, Badge, Card, SectionTitle, Input, Btn, Alert, Spinner, Grid } from '../lib/ui'
 
 export default function Animals() {
   const [animals, setAnimals] = useState([])
