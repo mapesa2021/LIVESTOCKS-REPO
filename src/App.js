@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { AuthProvider, useAuth, LoginPage } from './lib/auth'
 import Dashboard from './pages/Dashboard'
 import Animals from './pages/Animals'

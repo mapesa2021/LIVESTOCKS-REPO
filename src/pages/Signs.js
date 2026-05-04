@@ -3,7 +3,6 @@ import { getSigns, addSign, getSignPnl, getAnimals } from '../lib/supabase'
 import { fmt, fmtDate, Badge, Card, SectionTitle, Input, Btn, Alert, Grid, Spinner, Metric } from '../lib/ui'
 
 export default function Signs() {
-  const [signs, setSigns] = useState([])
   const [pnl, setPnl] = useState([])
   const [expanded, setExpanded] = useState(null)
   const [signAnimals, setSignAnimals] = useState({})
@@ -15,7 +14,6 @@ export default function Signs() {
     setLoading(true)
     try {
       const [s, p] = await Promise.all([getSigns(), getSignPnl()])
-      setSigns(s)
       setPnl(p)
     } finally { setLoading(false) }
   }
