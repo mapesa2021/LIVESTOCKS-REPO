@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getAgents, addAgent, getCosts, getAnimals, getPayments, supabase } from '../lib/supabase'
-import { fmt, Card, SectionTitle, Input, Btn, Alert, Grid, Spinner, Metric } from '../lib/ui'
+import { fmt, Card, SectionTitle, Input, Btn, Grid, Spinner, Metric } from '../lib/ui'
 
 const COMMISSION_PER_ANIMAL = 1000
 const COMMISSION_MIN_PROFIT = 3000
