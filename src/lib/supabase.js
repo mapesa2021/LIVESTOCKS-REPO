@@ -132,7 +132,7 @@ export async function addPayment(payment) {
     .select('*')
     .eq('sign_id', payment.sign_id)
     .in('id', animalIds)
-    .eq('status', 'dispatched')
+    // status filter removed - animals update during same transaction
 
   const animals = signAnimals || []
   const count = animals.length
