@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getAgents, addAgentReport } from '../lib/supabase'
-import { fmt, Input, Btn, Alert, Grid } from '../lib/ui'
+import { fmt, Input, Alert, Grid } from '../lib/ui'
 import { today } from '../lib/ui'
 
 const empty = (agentId) => ({

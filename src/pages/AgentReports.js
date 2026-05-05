@@ -47,7 +47,7 @@ export default function AgentReports() {
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function f(k, v) { setForm(p => ({ ...p, [k]: v })) }
   function ff(k, v) { setFloatForm(p => ({ ...p, [k]: v })) }
