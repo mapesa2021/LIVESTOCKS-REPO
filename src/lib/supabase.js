@@ -42,13 +42,6 @@ export async function moveCheckpoint(animalId, checkpoint, date, notes = '') {
   await supabase.from('checkpoint_history').insert([{ animal_id: animalId, checkpoint, moved_at: date, notes }])
 }
 
-export async function getCheckpointHistory(animalId) {
-  const { data, error } = await supabase
-    .from('checkpoint_history').select('*').eq('animal_id', animalId).order('moved_at')
-  if (error) throw error
-  return data
-}
-
 // ── Signs ─────────────────────────────────────────
 export async function getSigns() {
   const { data, error } = await supabase.from('signs').select('*').order('name')
@@ -88,6 +81,59 @@ export async function addAgent(agent) {
   return data
 }
 
+// ── Cash floats ───────────────────────────────────
+export async function getCashFloats(agentId) {
+  let q = supabase.from('cash_floats').select('*, agents(name)').order('date', { ascending: false })
+  if (agentId) q = q.eq('agent_id', agentId)
+  const { data, error } = await q
+  if (error) throw error
+  return data
+}
+
+export async function addCashFloat(entry) {
+  const { data, error } = await supabase.from('cash_floats').insert([entry]).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function getAgentCashBalance() {
+  const { data, error } = await supabase.from('agent_cash_balance').select('*')
+  if (error) throw error
+  return data
+}
+
+// ── Agent daily reports ───────────────────────────
+export async function getAgentReports(agentId) {
+  let q = supabase.from('agent_daily_reports').select('*, agents(name)').order('date', { ascending: false })
+  if (agentId) q = q.eq('agent_id', agentId)
+  const { data, error } = await q
+  if (error) throw error
+  return data
+}
+
+export async function addAgentReport(report) {
+  const { data, error } = await supabase.from('agent_daily_reports').insert([report]).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateAgentReport(id, updates) {
+  const { data, error } = await supabase.from('agent_daily_reports').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteAgentReport(id) {
+  const { error } = await supabase.from('agent_daily_reports').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getUshurSavings() {
+  const { data, error } = await supabase.from('ushuru_savings').select('*').order('date', { ascending: false })
+  if (error) throw error
+  return data
+}
+
 // ── Dispatches ────────────────────────────────────
 export async function getDispatches() {
   const { data, error } = await supabase.from('dispatches').select('*').order('date', { ascending: false })
@@ -104,100 +150,55 @@ export async function addDispatch(dispatch, animalIds) {
   return data
 }
 
-export async function getDispatchAnimals(dispatchId) {
-  const { data, error } = await supabase
-    .from('dispatch_animals')
-    .select('animal_id, sign_id, animals_full(*)')
-    .eq('dispatch_id', dispatchId)
-  if (error) throw error
-  return data
-}
-
 // ── Payments ──────────────────────────────────────
 export async function addPayment(payment) {
-  // 1. Save payment
   const { data, error } = await supabase.from('payments').insert([payment]).select().single()
   if (error) throw error
 
-  // 2. Get all dispatched animals for this sign in this batch
   const { data: daRows } = await supabase
-    .from('dispatch_animals')
-    .select('animal_id')
-    .eq('dispatch_id', payment.dispatch_id)
+    .from('dispatch_animals').select('animal_id').eq('dispatch_id', payment.dispatch_id)
 
   const animalIds = (daRows || []).map(r => r.animal_id)
-
   const { data: signAnimals } = await supabase
-    .from('animals_full')
-    .select('*')
-    .eq('sign_id', payment.sign_id)
-    .in('id', animalIds)
-    // status filter removed - animals update during same transaction
+    .from('animals_full').select('*')
+    .eq('sign_id', payment.sign_id).in('id', animalIds)
 
   const animals = signAnimals || []
-  const count = animals.length
-  if (count === 0) return data
+  if (!animals.length) return data
 
-  // 3. Mark animals as sold
-  await supabase.from('animals')
-    .update({ status: 'sold' })
-    .in('id', animals.map(a => a.id))
+  await supabase.from('animals').update({ status: 'sold' }).in('id', animals.map(a => a.id))
 
-  // 4. Get total linked costs for this sign
   const { data: signCosts } = await supabase
-    .from('costs')
-    .select('amount')
-    .eq('sign_id', payment.sign_id)
+    .from('costs').select('amount').eq('sign_id', payment.sign_id)
 
   const totalLinkedCosts = (signCosts || []).reduce((s, c) => s + Number(c.amount), 0)
   const totalBuyCost = animals.reduce((s, a) => s + Number(a.purchase_price), 0)
+  const profitPerAnimal = (Number(payment.revenue) - totalBuyCost - totalLinkedCosts) / animals.length
 
-  // 5. Calculate profit per animal (revenue - buy cost - linked costs) / count
-  const profitPerAnimal = (Number(payment.revenue) - totalBuyCost - totalLinkedCosts) / count
-
-  // 6. Auto-record commission if profit threshold met
   if (profitPerAnimal > COMMISSION_MIN_PROFIT) {
-    // Group by agent
     const agentMap = {}
     animals.forEach(a => {
-      if (a.agent_id) {
+      if (a.agent_id && a.agent_name) {
         if (!agentMap[a.agent_id]) agentMap[a.agent_id] = { name: a.agent_name, count: 0 }
         agentMap[a.agent_id].count++
       }
     })
-
     for (const [, info] of Object.entries(agentMap)) {
-      const commissionAmount = info.count * COMMISSION_PER_ANIMAL
       await supabase.from('costs').insert([{
-        date: payment.date,
-        type: 'agent-commission',
-        amount: commissionAmount,
+        date: payment.date, type: 'agent-commission',
+        amount: info.count * COMMISSION_PER_ANIMAL,
         sign_id: payment.sign_id,
         notes: `Auto-commission: ${info.name} — ${info.count} animal${info.count !== 1 ? 's' : ''} × TSH ${COMMISSION_PER_ANIMAL.toLocaleString()} (Batch #${payment.dispatch_id})`
       }])
     }
   }
-
   return data
 }
 
 export async function getPayments() {
   const { data, error } = await supabase
-    .from('payments')
-    .select('*, signs(name), dispatches(date, method)')
+    .from('payments').select('*, signs(name), dispatches(date, method)')
     .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
-}
-
-export async function updatePayment(id, updates) {
-  const { data, error } = await supabase.from('payments').update(updates).eq('id', id).select().single()
-  if (error) throw error
-  return data
-}
-
-export async function updateDispatch(id, updates) {
-  const { data, error } = await supabase.from('dispatches').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data
 }
@@ -220,7 +221,7 @@ export async function deleteCost(id) {
   if (error) throw error
 }
 
-// ── Dashboard stats ───────────────────────────────
+// ── Dashboard ─────────────────────────────────────
 export async function getDashboardStats() {
   const [animals, payments, costs, signs] = await Promise.all([
     supabase.from('animals').select('status, purchase_price, resale_price'),
@@ -229,13 +230,11 @@ export async function getDashboardStats() {
     supabase.from('sign_pnl').select('*')
   ])
   if (animals.error) throw animals.error
-
   const all = animals.data || []
   const totalBuy = all.reduce((s, a) => s + Number(a.purchase_price), 0)
   const totalRevenue = (payments.data || []).reduce((s, p) => s + Number(p.revenue), 0)
   const totalCosts = (costs.data || []).reduce((s, c) => s + Number(c.amount), 0)
   const totalKg = (payments.data || []).reduce((s, p) => s + Number(p.kg_assigned), 0)
-
   return {
     totalAnimals: all.length,
     pending: all.filter(a => a.status === 'pending').length,
@@ -253,8 +252,4 @@ export async function getSettings() {
   const { data, error } = await supabase.from('settings').select('*')
   if (error) throw error
   return Object.fromEntries((data || []).map(r => [r.key, r.value]))
-}
-
-export async function saveSetting(key, value) {
-  await supabase.from('settings').upsert({ key, value, updated_at: new Date().toISOString() })
 }
