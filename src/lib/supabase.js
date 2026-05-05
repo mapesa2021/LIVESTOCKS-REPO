@@ -5,12 +5,16 @@ const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
+const COMMISSION_PER_ANIMAL = 1000
+const COMMISSION_MIN_PROFIT = 3000
+
 // ── Animals ──────────────────────────────────────
 export async function getAnimals(filters = {}) {
   let q = supabase.from('animals_full').select('*').order('created_at', { ascending: false })
   if (filters.status) q = q.eq('status', filters.status)
   if (filters.type)   q = q.eq('type', filters.type)
   if (filters.sign_id) q = q.eq('sign_id', filters.sign_id)
+  if (filters.mnada)  q = q.eq('mnada', filters.mnada)
   const { data, error } = await q
   if (error) throw error
   return data
@@ -19,12 +23,9 @@ export async function getAnimals(filters = {}) {
 export async function addAnimal(animal) {
   const { data, error } = await supabase.from('animals').insert([animal]).select().single()
   if (error) throw error
-  // log initial checkpoint
   if (animal.checkpoint) {
     await supabase.from('checkpoint_history').insert([{
-      animal_id: data.id,
-      checkpoint: animal.checkpoint,
-      moved_at: animal.date
+      animal_id: data.id, checkpoint: animal.checkpoint, moved_at: animal.date
     }])
   }
   return data
@@ -67,6 +68,13 @@ export async function getSignPnl() {
   return data
 }
 
+// ── Mnada P/L ─────────────────────────────────────
+export async function getMnadaPnl() {
+  const { data, error } = await supabase.from('mnada_pnl').select('*')
+  if (error) throw error
+  return data
+}
+
 // ── Agents ────────────────────────────────────────
 export async function getAgents() {
   const { data, error } = await supabase.from('agents').select('*').order('name')
@@ -90,10 +98,8 @@ export async function getDispatches() {
 export async function addDispatch(dispatch, animalIds) {
   const { data, error } = await supabase.from('dispatches').insert([dispatch]).select().single()
   if (error) throw error
-  // link animals
   const links = animalIds.map(id => ({ dispatch_id: data.id, animal_id: id }))
   await supabase.from('dispatch_animals').insert(links)
-  // update animal statuses
   await supabase.from('animals').update({ status: 'dispatched' }).in('id', animalIds)
   return data
 }
@@ -109,18 +115,89 @@ export async function getDispatchAnimals(dispatchId) {
 
 // ── Payments ──────────────────────────────────────
 export async function addPayment(payment) {
+  // 1. Save payment
   const { data, error } = await supabase.from('payments').insert([payment]).select().single()
   if (error) throw error
-  // mark animals as sold
+
+  // 2. Get all dispatched animals for this sign in this batch
+  const { data: daRows } = await supabase
+    .from('dispatch_animals')
+    .select('animal_id')
+    .eq('dispatch_id', payment.dispatch_id)
+
+  const animalIds = (daRows || []).map(r => r.animal_id)
+
+  const { data: signAnimals } = await supabase
+    .from('animals_full')
+    .select('*')
+    .eq('sign_id', payment.sign_id)
+    .in('id', animalIds)
+    .eq('status', 'dispatched')
+
+  const animals = signAnimals || []
+  const count = animals.length
+  if (count === 0) return data
+
+  // 3. Mark animals as sold
   await supabase.from('animals')
     .update({ status: 'sold' })
+    .in('id', animals.map(a => a.id))
+
+  // 4. Get total linked costs for this sign
+  const { data: signCosts } = await supabase
+    .from('costs')
+    .select('amount')
     .eq('sign_id', payment.sign_id)
-    .eq('status', 'dispatched')
+
+  const totalLinkedCosts = (signCosts || []).reduce((s, c) => s + Number(c.amount), 0)
+  const totalBuyCost = animals.reduce((s, a) => s + Number(a.purchase_price), 0)
+
+  // 5. Calculate profit per animal (revenue - buy cost - linked costs) / count
+  const profitPerAnimal = (Number(payment.revenue) - totalBuyCost - totalLinkedCosts) / count
+
+  // 6. Auto-record commission if profit threshold met
+  if (profitPerAnimal > COMMISSION_MIN_PROFIT) {
+    // Group by agent
+    const agentMap = {}
+    animals.forEach(a => {
+      if (a.agent_id) {
+        if (!agentMap[a.agent_id]) agentMap[a.agent_id] = { name: a.agent_name, count: 0 }
+        agentMap[a.agent_id].count++
+      }
+    })
+
+    for (const [agentId, info] of Object.entries(agentMap)) {
+      const commissionAmount = info.count * COMMISSION_PER_ANIMAL
+      await supabase.from('costs').insert([{
+        date: payment.date,
+        type: 'agent-commission',
+        amount: commissionAmount,
+        sign_id: payment.sign_id,
+        notes: `Auto-commission: ${info.name} — ${info.count} animal${info.count !== 1 ? 's' : ''} × TSH ${COMMISSION_PER_ANIMAL.toLocaleString()} (Batch #${payment.dispatch_id})`
+      }])
+    }
+  }
+
   return data
 }
 
 export async function getPayments() {
-  const { data, error } = await supabase.from('payments').select('*, signs(name), dispatches(date, method)').order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*, signs(name), dispatches(date, method)')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function updatePayment(id, updates) {
+  const { data, error } = await supabase.from('payments').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateDispatch(id, updates) {
+  const { data, error } = await supabase.from('dispatches').update(updates).eq('id', id).select().single()
   if (error) throw error
   return data
 }
@@ -165,10 +242,7 @@ export async function getDashboardStats() {
     dispatched: all.filter(a => a.status === 'dispatched').length,
     sold: all.filter(a => a.status === 'sold').length,
     dead: all.filter(a => a.status === 'dead').length,
-    totalBuy,
-    totalRevenue,
-    totalCosts,
-    totalKg,
+    totalBuy, totalRevenue, totalCosts, totalKg,
     netPL: totalRevenue - totalBuy - totalCosts,
     signPnl: signs.data || []
   }
