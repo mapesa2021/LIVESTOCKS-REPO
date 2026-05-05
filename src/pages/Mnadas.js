@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getMnadaPnl, getAnimals } from '../lib/supabase'
-import { fmt, fmtDate, Badge, Card, SectionTitle, Spinner, Metric } from '../lib/ui'
+import { fmt, fmtDate, Badge, Card, Spinner, Metric } from '../lib/ui'
 
 export default function Mnadas() {
   const [pnl, setPnl] = useState([])

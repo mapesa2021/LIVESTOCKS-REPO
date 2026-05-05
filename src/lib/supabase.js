@@ -166,7 +166,7 @@ export async function addPayment(payment) {
       }
     })
 
-    for (const [agentId, info] of Object.entries(agentMap)) {
+    for (const [, info] of Object.entries(agentMap)) {
       const commissionAmount = info.count * COMMISSION_PER_ANIMAL
       await supabase.from('costs').insert([{
         date: payment.date,
